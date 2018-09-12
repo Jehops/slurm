@@ -514,7 +514,6 @@ static int _thread_init(void)
 		return first_init;
 	first = false;
 
-
 	if (_init_ipmi_config() != SLURM_SUCCESS) {
 		if (debug_flags & DEBUG_FLAG_ENERGY)
 			info("%s thread init error on _init_ipmi_config()",
@@ -725,7 +724,6 @@ static void *_thread_launcher(void *no_data)
  */
 static int _get_joules_task(uint16_t delta)
 {
-	static bool first = true;
 	acct_gather_energy_t *energy = NULL;
 	uint16_t sensor_cnt = 0;       
 	
@@ -741,12 +739,23 @@ static int _get_joules_task(uint16_t delta)
 		return SLURM_ERROR;
 	}
 
-	if (first) {
+	if (!xcc_sensor) {
 		xcc_sensor = xmalloc(sizeof(sensor_status_t));
 		memset(xcc_sensor, 0, sizeof(sensor_status_t));
-	}
 
-	if (!first) {
+		/* This is just for the step, so take all the pervious
+		   consumption out of the mix. */
+		xcc_sensor->first_read_time.tv_sec = energy->poll_time;
+		xcc_sensor->prev_read_time.tv_sec = energy->poll_time;
+		xcc_sensor->curr_read_time.tv_sec = energy->poll_time;
+		xcc_sensor->base_j = energy->consumed_energy;
+		xcc_sensor->curr_j = xcc_sensor->base_j;
+		xcc_sensor->prev_j = xcc_sensor->base_j;
+		xcc_sensor->low_j = xcc_sensor->base_j;
+		xcc_sensor->high_j = xcc_sensor->base_j;
+		xcc_sensor->low_elapsed_s = 0;
+		xcc_sensor->high_elapsed_s = 0;
+	} else {
 		xcc_sensor->prev_j = xcc_sensor->curr_j;
 		xcc_sensor->prev_read_time = xcc_sensor->curr_read_time;
  		xcc_sensor->curr_read_time.tv_sec = energy->poll_time;
@@ -765,20 +774,6 @@ static int _get_joules_task(uint16_t delta)
 			xcc_sensor->high_elapsed_s = e_ms;
 		}
 		/***********************************/
-	       
-	} else {
-		/* This is just for the step, so take all the pervious
-		   consumption out of the mix. */
-		xcc_sensor->first_read_time.tv_sec = energy->poll_time;
-		xcc_sensor->prev_read_time.tv_sec = energy->poll_time;
-		xcc_sensor->curr_read_time.tv_sec = energy->poll_time;
-		xcc_sensor->base_j = energy->consumed_energy;
-		xcc_sensor->curr_j = xcc_sensor->base_j;
-		xcc_sensor->prev_j = xcc_sensor->base_j;
-		xcc_sensor->low_j = xcc_sensor->base_j;
-		xcc_sensor->high_j = xcc_sensor->base_j;
-		xcc_sensor->low_elapsed_s = 0;
-		xcc_sensor->high_elapsed_s = 0;
 	}
 	
 	if (debug_flags & DEBUG_FLAG_ENERGY) {
@@ -796,7 +791,6 @@ static int _get_joules_task(uint16_t delta)
 	}
 
 	acct_gather_energy_destroy(energy);
-	first = false;
 	return SLURM_SUCCESS;
 }
 
@@ -882,7 +876,6 @@ extern int acct_gather_energy_p_update_node_energy(void)
 {
 	int rc = SLURM_SUCCESS;
 	xassert(_run_in_daemon());
-
 	return rc;
 }
 
@@ -1009,6 +1002,7 @@ extern void acct_gather_energy_p_conf_options(s_p_options_t **full_options,
 	transfer_s_p_options(full_options, options, full_options_cnt);
 }
 
+/* First entry function for slurmd startup */
 extern void acct_gather_energy_p_conf_set(s_p_hashtbl_t *tbl)
 {
 	/* Set initial values */

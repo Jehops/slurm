@@ -97,12 +97,21 @@ typedef struct slurm_ipmi_conf {
 	/* Use this driver device for the IPMI driver.*/
 	char *driver_device;
 	/* Options for IPMI configuration*/
-	/* Use a specific in-band driver.
-	 *   IPMI_MONITORING_DRIVER_TYPE_KCS      = 0x00,
-	 *   IPMI_MONITORING_DRIVER_TYPE_SSIF     = 0x01,
-	 *   IPMI_MONITORING_DRIVER_TYPE_OPENIPMI = 0x02,
-	 *   IPMI_MONITORING_DRIVER_TYPE_SUNBMC   = 0x03,
-	 *    Pass < 0 for default of IPMI_MONITORING_DRIVER_TYPE_KCS.*/
+	/* Use a specific in-band driver. Run "ipmi-locate" for supported ones:
+	   enum ipmi_driver_type
+	   {
+	   IPMI_DEVICE_UNKNOWN = 0,
+	   IPMI_DEVICE_LAN = 1,
+	   IPMI_DEVICE_LAN_2_0 = 2,
+	   IPMI_DEVICE_KCS = 3,
+	   IPMI_DEVICE_SMIC = 4,
+	   IPMI_DEVICE_BT = 5,
+	   IPMI_DEVICE_SSIF = 6,
+	   IPMI_DEVICE_OPENIPMI = 7,
+	   IPMI_DEVICE_SUNBMC = 8,
+	   IPMI_DEVICE_INTELDCMI = 9,
+	   };
+	   Pass < 0 for default of IPMI_MONITORING_DRIVER_TYPE_KCS.*/
 	uint32_t driver_type;
 	/* Flag informs the library if in-band driver information should be
 	 * probed or not.*/
