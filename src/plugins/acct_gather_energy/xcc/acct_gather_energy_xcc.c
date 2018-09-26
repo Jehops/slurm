@@ -40,7 +40,7 @@
 
 #include "acct_gather_energy_xcc.h"
 #include <math.h>
-
+#include <sys/syscall.h>
 /* These are defined here so when we link with something other than
  * the slurmctld we will have these symbols defined.  They will get
  * overwritten when linking with the slurmctld.
@@ -63,7 +63,7 @@ const char plugin_type[] = "acct_gather_energy/xcc";
 const uint32_t plugin_version = SLURM_VERSION_NUMBER;
 
 /* Global vars */
-ipmi_ctx_t ipmi_ctx = NULL;
+__thread ipmi_ctx_t ipmi_ctx = NULL;
 
 /* LUN, NetFN, CMD, Data[n]*/
 uint8_t cmd_rq[8] = { 0x00, 0x3A, 0x32, 4, 2, 0, 0, 0 };
@@ -510,7 +510,7 @@ static int _thread_init(void)
 	static bool first_init = SLURM_FAILURE;
 	xcc_raw_single_data_t * xcc_raw;
 
-	if (!first)
+	if (!first && ipmi_ctx)
 		return first_init;
 	first = false;
 
@@ -520,29 +520,28 @@ static int _thread_init(void)
 			     plugin_name);
 		goto cleanup;
 	}
-
 	xcc_raw = _read_ipmi_values();	
 	if (!xcc_raw) {
 		error("%s could not read XCC ipmi values", __func__);
 		goto cleanup;
 	}
 
-#if _DEBUG
-	if (xcc_sensor)
-		fatal("There is already a xcc_sensor already initialized, this"
-		      "should never happen!");
-#endif
-	xcc_sensor = xmalloc(sizeof(sensor_status_t));
-	memset(xcc_sensor, 0, sizeof(sensor_status_t));
-	
-	/* Let's fill the xcc_sensor with the first reading */
-	xcc_sensor->first_read_time.tv_sec = xcc_raw->s;
-	xcc_sensor->prev_read_time.tv_sec = xcc_raw->s;
-	xcc_sensor->curr_read_time.tv_sec = xcc_raw->s;
-	xcc_sensor->base_j = xcc_raw->j;
-	xcc_sensor->curr_j = xcc_raw->j;
-	xcc_sensor->prev_j = xcc_raw->j;
-	
+	if (!xcc_sensor) {
+	  xcc_sensor = xmalloc(sizeof(sensor_status_t));
+	  memset(xcc_sensor, 0, sizeof(sensor_status_t));
+
+	  /* Let's fill the xcc_sensor with the first reading */
+	  xcc_sensor->first_read_time.tv_sec = xcc_raw->s;
+	  xcc_sensor->prev_read_time.tv_sec = xcc_raw->s;
+	  xcc_sensor->curr_read_time.tv_sec = xcc_raw->s;
+	  xcc_sensor->base_j = xcc_raw->j;
+	  xcc_sensor->curr_j = xcc_raw->j;
+	  xcc_sensor->prev_j = xcc_raw->j;
+	} else {
+	  debug3("There is a xcc_sensor already initialized and "
+		 "we are a child process: %ld", syscall(SYS_gettid));
+	}
+
 	if (debug_flags & DEBUG_FLAG_ENERGY)
 		info("%s thread init success", plugin_name);
 	
